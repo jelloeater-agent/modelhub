@@ -1,4 +1,4 @@
-modelhub
+/modelhub
 *.test
 *.out
 *.testbin
