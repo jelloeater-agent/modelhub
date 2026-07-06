@@ -74,10 +74,9 @@ jobs:
             replace_existing_artifacts: true
             target_commitish: "{{ .Commit }}"
             prerelease: auto
-
-          make_latest: true
-          mode: replace
-          include_meta: true
+            make_latest: true
+            mode: replace
+            include_meta: true
           EOF
 
       - name: Run GoReleaser
