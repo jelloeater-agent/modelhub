@@ -197,6 +197,9 @@ func (m *teaModel) applyFilter() {
 }
 
 func (m *teaModel) handleRefresh(msg refreshMsg) tea.Cmd {
+	if msg.result == nil {
+		return nil
+	}
 	r := msg.result
 	if r.Models != nil {
 		m.allModels = r.Models
