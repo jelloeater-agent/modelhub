@@ -1,0 +1,35 @@
+version: '3'
+
+tasks:
+    default:
+        dir: .
+        cmds:
+            - go mod download
+            - go mod tidy
+            - go mod verify
+            - go fmt .
+            - go vet .
+            - go clean .
+            - task: build
+            - ./dist/modelhub_linux_amd64_v1/modelhub
+        silent: false
+
+    go_build:
+        - rm -rf ./build
+        - mkdir ./build
+        - go build -o ./build ./cmd/modelhub
+        - ./build/modelhub
+
+    build:
+      - goreleaser --snapshot --clean
+
+    install-hooks:
+        cmds:
+#            - pip install pre-commit
+#            - pip install --upgrade pre-commit
+            - pre-commit install
+    remove-hooks:
+        ignore_error: true
+        cmds:
+            - pre-commit uninstall
+            - rm .git/hooks -rf
