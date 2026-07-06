@@ -19,6 +19,7 @@ func (m *teaModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.state != viewDetail { // detail uses 'q' to go back
 			return m, tea.Quit
 		}
+		return m, nil
 	case "?":
 		if m.state == viewHelp {
 			m.state = viewList
@@ -30,41 +31,53 @@ func (m *teaModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	switch m.state {
 	case viewList:
-		return m.handleListKey(msg)
+		if m.filtering {
+			// In filter mode: only enter/esc handled by app
+			switch msg.String() {
+			case "enter":
+				m.filter.Search = m.filterInput.Value()
+				m.filtering = false
+				m.applyFilter()
+				m.initTable()
+				return m, nil
+			case "esc":
+				m.filtering = false
+				m.filterInput.SetValue("")
+				return m, nil
+			}
+			// Forward all other keys to the filter input
+			var cmd tea.Cmd
+			m.filterInput, cmd = m.filterInput.Update(msg)
+			return m, cmd
+		}
+
+		// App-level list keys
+		if handled, cmd := m.handleListKey(msg); handled {
+			return m, cmd
+		}
+
+		// Unhandled — forward to table for native navigation (arrows, pgup/dn, home/end)
+		var cmd tea.Cmd
+		m.table, cmd = m.table.Update(msg)
+		return m, cmd
+
 	case viewDetail:
-		return m.handleDetailKey(msg)
+		m.handleDetailKey(msg)
+		return m, nil
 	}
 
 	return m, nil
 }
 
-func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Filter mode
-	if m.filtering {
-		switch msg.String() {
-		case "enter":
-			m.filter.Search = m.filterInput.Value()
-			m.filtering = false
-			m.applyFilter()
-			m.initTable()
-			return m, nil
-		case "esc":
-			m.filtering = false
-			m.filterInput.SetValue("")
-			return m, nil
-		}
-		return m, nil
-	}
-
+func (m *teaModel) handleListKey(msg tea.KeyMsg) (handled bool, cmd tea.Cmd) {
+	handled = true
 	switch msg.String() {
 	case "/":
 		m.filtering = true
 		m.filterInput.SetValue("")
 		m.filterInput.Focus()
-		return m, nil
 
 	case "s":
-		// Cycle sort field
 		sortFields := []string{"name", "provider", "input_price", "output_price", "context", "speed", "intelligence", "sources"}
 		for i, f := range sortFields {
 			if m.sortBy == f {
@@ -74,16 +87,13 @@ func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.applyFilter()
 		m.initTable()
-		return m, nil
 
 	case "S":
 		m.sortAsc = !m.sortAsc
 		m.applyFilter()
 		m.initTable()
-		return m, nil
 
 	case "m":
-		// Cycle mode filter
 		modes := []string{"", "chat", "image_generation", "embedding"}
 		current := ""
 		if len(m.filter.Modes) > 0 {
@@ -102,10 +112,8 @@ func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.applyFilter()
 		m.initTable()
-		return m, nil
 
 	case "p":
-		// Cycle provider filter
 		providers := m.uniqueProviders()
 		providers = append([]string{""}, providers...)
 		current := ""
@@ -125,17 +133,15 @@ func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.applyFilter()
 		m.initTable()
-		return m, nil
 
 	case "v":
 		m.filter.CapFlags.Vision = !m.filter.CapFlags.Vision
 		m.applyFilter()
 		m.initTable()
-		return m, nil
 
 	case "r":
 		m.state = viewList
-		return m, refreshModels(m.cfg)
+		cmd = refreshModels(m.cfg)
 
 	case "enter":
 		if len(m.models) > 0 {
@@ -145,7 +151,6 @@ func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.state = viewDetail
 			}
 		}
-		return m, nil
 
 	case "esc":
 		m.filter = merge.FilterParams{}
@@ -153,20 +158,22 @@ func (m *teaModel) handleListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.models = m.allModels
 		m.applyFilter()
 		m.initTable()
-		return m, nil
+
+	default:
+		handled = false
 	}
 
-	return m, nil
+	return
 }
 
-func (m *teaModel) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (m *teaModel) handleDetailKey(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "esc", "q", "left":
 		m.state = viewList
 		m.selectedModel = nil
-		return m, nil
+		return true
 	}
-	return m, nil
+	return false
 }
 
 func (m *teaModel) uniqueProviders() []string {
