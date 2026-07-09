@@ -10,71 +10,68 @@
 ![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/jelloeater-agent/modelhub)
 ![GitHub Release Date](https://img.shields.io/github/release-date/jelloeater-agent/modelhub)
 
-TUI for browsing LLM pricing, capabilities, and benchmarks — sourced from Bifrost, models.dev, and Artificial Analysis.
-
-![ModelHub](modelhub.gif)
+AI model pricing, capabilities, and benchmarks — from Bifrost, models.dev, and Artificial Analysis. **Zero dependencies.**
 
 ## Install
-
-### Apt (Preferred)
-
-```shell
-curl -s https://packagecloud.io/install/repositories/jelloeater/modelhub/script.deb.sh | sudo bash
-sudo apt-get install modelhub
-```
-
-### Yum (Preferred)
-
-```shell
-curl -s https://packagecloud.io/install/repositories/jelloeater/modelhub/script.rpm.sh | sudo bash
-sudo yum install modelhub
-```
-
-### Binary (eget)
-
-```shell
-curl https://zyedidia.github.io/eget.sh | sh
-sudo mv eget /usr/local/bin
-sudo eget jelloeater-agent/modelhub --to /usr/local/bin --asset=tar.gz
-```
-
-### Via Go
 
 ```shell
 go install github.com/jelloeater-agent/modelhub/cmd/modelhub@latest
 ```
 
+Or grab a binary from [releases](https://github.com/jelloeater-agent/modelhub/releases).
+
 ## Usage
 
-```shell
-modelhub
+```
+modelhub refresh           Fetch latest data from all sources
+modelhub list [--table]    List models (JSON default)
+modelhub show <id>         Show a single model (JSON)
+modelhub stats             Aggregate statistics (JSON + summary)
 ```
 
-### Controls
+### Examples
 
-| Key | Action |
-|-----|--------|
-| `↑/↓` | Navigate rows |
-| `PgUp/PgDn` | Page up/down |
-| `Home/End` | Jump to top/bottom |
-| `/` | Search |
-| `s` | Sort column |
-| `f` | Filter by provider |
-| `Enter` | View model details |
-| `Esc` | Back / Clear |
-| `r` | Refresh data |
-| `q` / `Ctrl+C` | Quit |
+```shell
+# Refresh data
+modelhub refresh
 
-### Settings
+# Pipe JSON to jq for any query
+modelhub list | jq '.[] | select(.provider=="openai") | .name'
+modelhub list | jq '.[] | select(.context_window > 128000 and .input_price_per_1m < 1)'
+modelhub list | jq '.[] | select(.supports_vision) | .id'
 
-| Env Var | Description |
-|---------|-------------|
-| `AA_API_KEY` | Artificial Analysis API key (for benchmarks) |
+# Quick visual scan
+modelhub list --table
+modelhub list --table | grep gpt-4
+
+# Single model details
+modelhub show openai/gpt-4o | jq .context_window
+
+# Stats
+modelhub stats
+
+# Search interactively with fzf
+modelhub list | jq -r '.[].id' | fzf --preview 'modelhub show {}'
+```
+
+### Config
+
+Set `AA_API_KEY` env var for Artificial Analysis benchmarks (optional):
+
+```shell
+export AA_API_KEY=your_key_here
+```
+
+Or create `~/.modelhub/config.json`:
+
+```json
+{
+  "aa_api_key": "your_key_here"
+}
+```
 
 ## Build
 
 ```shell
-go mod download
-go build -o ./build ./cmd/modelhub
-./build/modelhub
+go build ./cmd/modelhub
 ```

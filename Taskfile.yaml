@@ -17,8 +17,8 @@ tasks:
     go_build:
         - rm -rf ./build
         - mkdir ./build
-        - go build -o ./build ./cmd/modelhub
-        - ./build/modelhub
+            - go build -o ./build ./cmd/modelhub
+        - ./build/modelhub list --table | head -5
 
     build:
       - goreleaser --snapshot --clean
