@@ -1,7 +1,7 @@
 package fetch
 
 import (
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 // AAResponse wraps the Artificial Analysis API response.

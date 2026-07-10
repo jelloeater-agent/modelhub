@@ -3,7 +3,7 @@ package merge
 import (
 	"testing"
 
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 // Exercise all Merge priority branches: incoming=higher, incoming=lower, same priority

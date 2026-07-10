@@ -3,7 +3,7 @@ package fetch
 import (
 	"strings"
 
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 // RawBifrostEntry maps a single Bifrost datasheet entry.

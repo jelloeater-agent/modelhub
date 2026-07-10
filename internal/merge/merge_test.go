@@ -3,7 +3,7 @@ package merge
 import (
 	"testing"
 
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 func TestNormalizeID(t *testing.T) {

@@ -13,9 +13,9 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/user/modelhub/internal/cache"
-	"github.com/user/modelhub/internal/merge"
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/cache"
+	"github.com/jelloeater-agent/modelhub/internal/merge"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 func main() {

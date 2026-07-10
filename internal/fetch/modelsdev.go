@@ -1,7 +1,7 @@
 package fetch
 
 import (
-	"github.com/user/modelhub/internal/model"
+	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
 // ModelsDevProvider represents a provider entry in models.dev/api.json.
