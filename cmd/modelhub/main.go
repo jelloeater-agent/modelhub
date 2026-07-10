@@ -330,35 +330,39 @@ complete -F _modelhub modelhub
 
 var zshCompletion = `#compdef modelhub
 
-local -a subcmds
-subcmds=(
-  'refresh:Fetch latest data from all sources'
-  'list:List models (--table for human-readable)'
-  'show:Show a single model by ID'
-  'stats:Aggregate statistics'
-  'completion:Generate shell completion script'
-)
+_modelhub() {
+  local -a subcmds
+  subcmds=(
+    'refresh:Fetch latest data from all sources'
+    'list:List models (--table for human-readable)'
+    'show:Show a single model by ID'
+    'stats:Aggregate statistics'
+    'completion:Generate shell completion script'
+  )
 
-local -a list_opts
-list_opts=('--table[Tabular output]')
+  local -a list_opts
+  list_opts=('--table[Tabular output]')
 
-local -a global_opts
-global_opts=('--config[Path to config file]')
+  local -a global_opts
+  global_opts=('--config[Path to config file]')
 
-_arguments \
-  $global_opts \
-  "1: :{_describe 'command' subcmds}" \
-  "*::args:->args"
+  _arguments \
+    $global_opts \
+    "1: :{_describe 'command' subcmds}" \
+    "*::args:->args"
 
-case $state in
-  args)
-    case $line[1] in
-      list)  _arguments $list_opts ;;
-      show)  _arguments ':model-id:' ;;
-      completion) _arguments ':shell:(bash zsh fish)' ;;
-    esac
-    ;;
-esac
+  case $state in
+    args)
+      case $line[1] in
+        list)  _arguments $list_opts ;;
+        show)  _arguments ':model-id:' ;;
+        completion) _arguments ':shell:(bash zsh fish)' ;;
+      esac
+      ;;
+  esac
+}
+
+compdef _modelhub modelhub
 `
 
 var fishCompletion = `function __fish_modelhub_needs_command
