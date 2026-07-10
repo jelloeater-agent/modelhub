@@ -38,6 +38,8 @@ func main() {
 		cmdShow(cfg, store)
 	case "stats":
 		cmdStats(cfg, store)
+	case "completion":
+		cmdCompletion()
 	default:
 		usage()
 	}
@@ -52,11 +54,15 @@ Usage:
   modelhub list [--table]    List models (JSON default, --table for human)
   modelhub show <id>         Show a single model (JSON)
   modelhub stats [--json]    Aggregate statistics (JSON by default)
+  modelhub completion <sh>   Generate shell completion (bash|zsh|fish)
 
 Config: ~/.modelhub/config.json or AA_API_KEY env var
 Cache:  ~/.modelhub/cache.json
 
 Examples:
+  eval "$(modelhub completion bash)"   # bash
+  eval "$(modelhub completion zsh)"    # zsh
+  modelhub completion fish | source    # fish
   modelhub list | jq '.[] | select(.provider=="openai") | .name'
   modelhub list --table | grep gpt-4
   modelhub show openai/gpt-4o | jq .context_window
@@ -271,3 +277,115 @@ func cmdStats(cfg model.Config, store *cache.Store) {
 		fmt.Fprintf(os.Stderr, "\nLast updated: %s\n", t.Format(time.RFC3339))
 	}
 }
+
+func cmdCompletion() {
+	if len(os.Args) < 3 {
+		log.Fatal("usage: modelhub completion bash|zsh|fish")
+	}
+	// ponytail: static completion scripts — no cobra, no codegen.
+	// If the CLI grows beyond 4 subcommands, switch to dynamic completion.
+	switch os.Args[2] {
+	case "bash":
+		fmt.Print(bashCompletion)
+	case "zsh":
+		fmt.Print(zshCompletion)
+	case "fish":
+		fmt.Print(fishCompletion)
+	default:
+		log.Fatalf("unknown shell %q (use: bash, zsh, fish)", os.Args[2])
+	}
+}
+
+var bashCompletion = `_modelhub() {
+    local cur prev words cword
+    _init_completion || return
+
+    local subcmds="refresh list show stats completion"
+    local list_flags="--table"
+    local global_flags="--config"
+
+    if [[ $cword -eq 1 ]]; then
+        COMPREPLY=($(compgen -W "$subcmds $global_flags" -- "$cur"))
+        return
+    fi
+
+    case ${words[1]} in
+        list)
+            COMPREPLY=($(compgen -W "$list_flags" -- "$cur"))
+            ;;
+        show)
+            COMPREPLY=()
+            ;;
+        completion)
+            COMPREPLY=($(compgen -W "bash zsh fish" -- "$cur"))
+            ;;
+    esac
+} &&
+complete -F _modelhub modelhub
+`
+
+var zshCompletion = `#compdef modelhub
+
+local -a subcmds
+subcmds=(
+  'refresh:Fetch latest data from all sources'
+  'list:List models (--table for human-readable)'
+  'show:Show a single model by ID'
+  'stats:Aggregate statistics'
+  'completion:Generate shell completion script'
+)
+
+local -a list_opts
+list_opts=('--table[Tabular output]')
+
+local -a global_opts
+global_opts=('--config[Path to config file]')
+
+_arguments \
+  $global_opts \
+  "1: :{_describe 'command' subcmds}" \
+  "*::args:->args"
+
+case $state in
+  args)
+    case $line[1] in
+      list)  _arguments $list_opts ;;
+      show)  _arguments ':model-id:' ;;
+      completion) _arguments ':shell:(bash zsh fish)' ;;
+    esac
+    ;;
+esac
+`
+
+var fishCompletion = `function __fish_modelhub_needs_command
+    set cmd (commandline -opc)
+    if test (count $cmd) -eq 1
+        return 0
+    end
+    return 1
+end
+
+function __fish_modelhub_using_command
+    set cmd (commandline -opc)
+    if test (count $cmd) -gt 1
+        set -l subcmd $cmd[2]
+        for arg in $argv
+            if test "$subcmd" = "$arg"
+                return 0
+            end
+        end
+    end
+    return 1
+end
+
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a refresh -d 'Fetch latest data from all sources'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a list -d 'List models (JSON default, --table for human)'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a show -d 'Show a single model by ID'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a stats -d 'Aggregate statistics'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a completion -d 'Generate shell completion script'
+
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -l config -d 'Path to config file'
+
+complete -c modelhub -f -n '__fish_modelhub_using_command list' -l table -d 'Tabular output'
+complete -c modelhub -f -n '__fish_modelhub_using_command completion' -a 'bash zsh fish'
+`
