@@ -27,6 +27,12 @@ func main() {
 		return
 	}
 
+	// ponytail: completion needs no config — short-circuit before initConfigAndStore
+	if os.Args[1] == "completion" {
+		cmdCompletion()
+		return
+	}
+
 	cfg, store := initConfigAndStore()
 
 	switch os.Args[1] {
@@ -38,8 +44,6 @@ func main() {
 		cmdShow(cfg, store)
 	case "stats":
 		cmdStats(cfg, store)
-	case "completion":
-		cmdCompletion()
 	default:
 		usage()
 	}
