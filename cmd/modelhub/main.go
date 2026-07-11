@@ -298,21 +298,23 @@ func cmdSearch(cfg model.Config, store *cache.Store) {
 
 	c := getCache(store)
 
-	// Build TSV: slug first (hidden), then display columns
+	// Build TSV: slug first (hidden), then fixed-width display columns
 	var buf bytes.Buffer
+	fmt.Fprintln(&buf, "PROVIDER           MODEL                                   MODE              INPUT/1M  OUTPUT/1M   CTX    SPEED")
 	for _, m := range c.Models {
 		speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
 		if m.MedianTokensPerSecond == 0 {
 			speed = "-"
 		}
-		fmt.Fprintf(&buf, "%s\t%s\t%s\t%s\t$%.2f\t$%.2f\t%d\t%s\n",
+		fmt.Fprintf(&buf, "%s\t%-18s %-38s %-16s $%-7.2f $%-8.2f %-5d %s\n",
 			m.ID, m.Provider, m.Name, m.Mode,
 			m.InputPricePer1M, m.OutputPricePer1M,
 			m.ContextWindow, speed)
 	}
 
 	cmd := exec.Command("fzf",
-		"--header", "PROVIDER | MODEL | MODE | INPUT/1M | OUTPUT/1M | CTX | SPEED",
+		"--header", "Enter → copy provider/slug to clipboard",
+		"--header-lines=1",
 		"--delimiter=\t",
 		"--with-nth=2..",
 	)
