@@ -1,7 +1,27 @@
 // Package model defines the unified data model for all AI model sources.
 package model
 
-import "time"
+import (
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// xdgPath returns $XDG_<env>/modelhub/<file> if the env var is set,
+// otherwise ~/.modelhub/<file>. Always respects XDG when configured.
+func xdgPath(env, file string) string {
+	if d := os.Getenv("XDG_" + env + "_HOME"); d != "" {
+		return filepath.Join(d, "modelhub", file)
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".modelhub", file)
+}
+
+// ConfigPath returns the default config path following XDG.
+func ConfigPath() string { return xdgPath("CONFIG", "config.json") }
+
+// CachePath returns the default cache path following XDG.
+func CachePath() string { return xdgPath("CACHE", "cache.json") }
 
 // Model is the unified representation merging data from all sources.
 type Model struct {
@@ -71,7 +91,7 @@ type Config struct {
 func DefaultConfig() Config {
 	return Config{
 		RefreshIntervalMin: 60,
-		CachePath:          "~/.modelhub/cache.json",
+		CachePath:          CachePath(),
 		BifrostURL:         "https://getbifrost.ai/datasheet",
 		ModelsDevURL:       "https://models.dev/api.json",
 		AAURL:              "https://artificialanalysis.ai/api/v2/data/llms/models",

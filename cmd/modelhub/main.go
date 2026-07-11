@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -21,6 +20,10 @@ import (
 	"github.com/jelloeater-agent/modelhub/internal/model"
 )
 
+// version is set at build time via -ldflags, falls back to the tag below.
+// ponytail: no separate version file, no build script — just update this on tag.
+var version = "v0.1.6" // bump on each release
+
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
@@ -30,16 +33,20 @@ func main() {
 		return
 	}
 
-	// ponytail: completion needs no config — short-circuit before initConfigAndStore
+	// ponytail: completion and version need no config — short-circuit before initConfigAndStore
 	if os.Args[1] == "completion" {
 		cmdCompletion()
+		return
+	}
+	if os.Args[1] == "version" || os.Args[1] == "--version" {
+		fmt.Println(version)
 		return
 	}
 
 	cfg, store := initConfigAndStore()
 
 	switch os.Args[1] {
-	case "refresh":
+	case "refresh", "update":
 		cmdRefresh(cfg, store)
 	case "list":
 		cmdList(cfg, store)
@@ -63,11 +70,13 @@ Usage:
   modelhub list [--table]    List models (JSON default, --table for human)
   modelhub show <id>         Show a single model (JSON)
   modelhub search            Interactive fuzzy search (fzf) with clipboard copy
-  modelhub stats [--json]    Aggregate statistics (JSON by default)
+  modelhub stats             Aggregate statistics (JSON)
+  modelhub version           Print version
   modelhub completion <sh>   Generate shell completion (bash|zsh|fish)
 
-Config: ~/.modelhub/config.json or AA_API_KEY env var
-Cache:  ~/.modelhub/cache.json
+Config: $XDG_CONFIG_HOME/modelhub/config.json or AA_API_KEY env var
+Cache:  $XDG_CACHE_HOME/modelhub/cache.json
+        (falls back to ~/.modelhub/ if XDG vars are unset)
 
 Examples:
   eval "$(modelhub completion bash)"   # bash
@@ -106,8 +115,7 @@ func resolveConfig(cfgPath string) model.Config {
 	cfg := model.DefaultConfig()
 
 	if cfgPath == "" {
-		home, _ := os.UserHomeDir()
-		cfgPath = filepath.Join(home, ".modelhub", "config.json")
+		cfgPath = model.ConfigPath()
 	}
 
 	data, err := os.ReadFile(cfgPath)
@@ -382,7 +390,7 @@ var bashCompletion = `_modelhub() {
     local cur prev words cword
     _init_completion || return
 
-    local subcmds="refresh list show stats search completion"
+    local subcmds="refresh list show stats search version completion"
     local list_flags="--table"
     local global_flags="--config"
 
@@ -416,6 +424,7 @@ _modelhub() {
     'show:Show a single model by ID'
     'search:Interactive fuzzy search with clipboard copy'
     'stats:Aggregate statistics'
+    'version:Print version'
     'completion:Generate shell completion script'
   )
 
@@ -470,6 +479,7 @@ complete -c modelhub -f -n '__fish_modelhub_needs_command' -a list -d 'List mode
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a show -d 'Show a single model by ID'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a search -d 'Interactive fuzzy search with clipboard copy'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a stats -d 'Aggregate statistics'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a version -d 'Print version'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a completion -d 'Generate shell completion script'
 
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -l config -d 'Path to config file'

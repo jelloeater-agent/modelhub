@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -9,8 +10,11 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.RefreshIntervalMin != 60 {
 		t.Errorf("RefreshIntervalMin = %d, want 60", cfg.RefreshIntervalMin)
 	}
-	if cfg.CachePath != "~/.modelhub/cache.json" {
-		t.Errorf("CachePath = %q, want ~/.modelhub/cache.json", cfg.CachePath)
+	if cfg.CachePath == "" {
+		t.Error("CachePath should not be empty")
+	}
+	if !strings.HasSuffix(cfg.CachePath, "modelhub/cache.json") {
+		t.Errorf("CachePath = %q, want .../modelhub/cache.json", cfg.CachePath)
 	}
 	if cfg.BifrostURL == "" {
 		t.Error("BifrostURL should not be empty")
