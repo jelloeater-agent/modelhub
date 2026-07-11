@@ -70,6 +70,7 @@ func usage() {
 Usage:
   modelhub refresh           Fetch latest data from all sources
   modelhub list [--table]    List models (JSON default, --table for human)
+  modelhub list --table --sort cost|provider
   modelhub show <id>         Show a single model (JSON)
   modelhub search            Interactive fuzzy search (fzf) with clipboard copy
   modelhub stats             Aggregate statistics (JSON)
@@ -86,6 +87,7 @@ Examples:
   eval "$(modelhub completion zsh)"    # zsh
   modelhub completion fish | source    # fish
   modelhub search                      # interactive fzf + copy
+  modelhub list --table --sort provider
   modelhub list | jq '.[] | select(.provider=="openai") | .name'
   modelhub list --table | grep gpt-4
   modelhub show openai/gpt-4o | jq .context_window
@@ -192,14 +194,19 @@ func cmdRefresh(cfg model.Config, store *cache.Store) {
 }
 
 func cmdList(cfg model.Config, store *cache.Store) {
-	// ponytail: minimal flag parsing per subcommand. --table only.
-	// Use jq for any real querying.
+	// ponytail: minimal flag parsing. --table, --sort only.
+	sortBy := "cost" // default: cheapest first
 	tableFlag := false
 	args := os.Args[2:]
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--table":
 			tableFlag = true
+		case "--sort":
+			if i+1 < len(args) {
+				i++
+				sortBy = args[i]
+			}
 		case "--config":
 			i++ // skip, already handled
 		}
@@ -207,18 +214,43 @@ func cmdList(cfg model.Config, store *cache.Store) {
 
 	c := getCache(store)
 
+	// ponytail: sort in place. Two modes, no sort interface abstraction.
+	sorted := make([]model.Model, len(c.Models))
+	copy(sorted, c.Models)
+	switch sortBy {
+	case "provider":
+		sort.Slice(sorted, func(i, j int) bool {
+			if sorted[i].Provider != sorted[j].Provider {
+				return sorted[i].Provider < sorted[j].Provider
+			}
+			return sorted[i].Name < sorted[j].Name
+		})
+	default: // "cost"
+		sort.Slice(sorted, func(i, j int) bool {
+			ci := sorted[i].InputPricePer1M + sorted[i].OutputPricePer1M
+			cj := sorted[j].InputPricePer1M + sorted[j].OutputPricePer1M
+			if ci != cj {
+				return ci < cj
+			}
+			return sorted[i].Provider < sorted[j].Provider
+		})
+	}
+
 	if tableFlag {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "PROVIDER\tMODEL\tMODE\tINPUT/1M\tOUTPUT/1M\tCTX\tSPEED(t/s)")
-		for _, m := range c.Models {
+		fmt.Fprintln(w, "PROVIDER\tMODEL\tMODE\tINPUT/1M\tOUTPUT/1M\tCTX\tSPEED\tTOOL\tTHINK\tVISION")
+		for _, m := range sorted {
 			speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
 			if m.MedianTokensPerSecond == 0 {
 				speed = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t$%.2f\t$%.2f\t%d\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t$%.2f\t$%.2f\t%d\t%s\t%s\t%s\t%s\n",
 				m.Provider, m.Name, m.Mode,
 				m.InputPricePer1M, m.OutputPricePer1M,
-				m.ContextWindow, speed)
+				m.ContextWindow, speed,
+				boolMark(m.SupportsFunctionCalling),
+				boolMark(m.SupportsReasoning),
+				boolMark(m.SupportsVision))
 		}
 		w.Flush()
 		return
@@ -230,6 +262,13 @@ func cmdList(cfg model.Config, store *cache.Store) {
 	if err := enc.Encode(c.Models); err != nil {
 		log.Fatalf("json encode: %v", err)
 	}
+}
+
+func boolMark(v bool) string {
+	if v {
+		return "✓"
+	}
+	return "✗"
 }
 
 func cmdShow(cfg model.Config, store *cache.Store) {
@@ -326,18 +365,33 @@ func cmdSearch(cfg model.Config, store *cache.Store) {
 
 	c := getCache(store)
 
-	// Build TSV: slug first (hidden), then fixed-width display columns
+	// Build TSV: slug first (hidden), then fixed-width display columns.
+	// Sort by cost (cheapest first) by default.
+	sorted := make([]model.Model, len(c.Models))
+	copy(sorted, c.Models)
+	sort.Slice(sorted, func(i, j int) bool {
+		ci := sorted[i].InputPricePer1M + sorted[i].OutputPricePer1M
+		cj := sorted[j].InputPricePer1M + sorted[j].OutputPricePer1M
+		if ci != cj {
+			return ci < cj
+		}
+		return sorted[i].Provider < sorted[j].Provider
+	})
+
 	var buf bytes.Buffer
-	fmt.Fprintln(&buf, "PROVIDER           MODEL                                   MODE              INPUT/1M  OUTPUT/1M   CTX    SPEED")
-	for _, m := range c.Models {
+	fmt.Fprintln(&buf, "PROVIDER           MODEL                                   MODE              INPUT/1M  OUTPUT/1M   CTX    SPEED  TOOL THINK VISION")
+	for _, m := range sorted {
 		speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
 		if m.MedianTokensPerSecond == 0 {
 			speed = "-"
 		}
-		fmt.Fprintf(&buf, "%s\t%-18s %-38s %-16s $%-7.2f $%-8.2f %-5d %s\n",
+		fmt.Fprintf(&buf, "%s\t%-18s %-38s %-16s $%-7.2f $%-8.2f %-5d %-5s  %s    %s    %s\n",
 			m.ID, m.Provider, m.Name, m.Mode,
 			m.InputPricePer1M, m.OutputPricePer1M,
-			m.ContextWindow, speed)
+			m.ContextWindow, speed,
+			boolMark(m.SupportsFunctionCalling),
+			boolMark(m.SupportsReasoning),
+			boolMark(m.SupportsVision))
 	}
 
 	cmd := exec.Command("fzf",
@@ -411,7 +465,7 @@ var bashCompletion = `_modelhub() {
     _init_completion || return
 
     local subcmds="refresh list show stats search version update completion"
-    local list_flags="--table"
+    local list_flags="--table --sort"
     local global_flags="--config"
 
     if [[ $cword -eq 1 ]]; then
@@ -450,7 +504,7 @@ _modelhub() {
   )
 
   local -a list_opts
-  list_opts=('--table[Tabular output]')
+  list_opts=('--table[Tabular output]' '--sort[Sort by cost or provider]:sort:(cost provider)')
 
   local -a global_opts
   global_opts=('--config[Path to config file]')
@@ -507,5 +561,6 @@ complete -c modelhub -f -n '__fish_modelhub_needs_command' -a completion -d 'Gen
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -l config -d 'Path to config file'
 
 complete -c modelhub -f -n '__fish_modelhub_using_command list' -l table -d 'Tabular output'
+complete -c modelhub -f -n '__fish_modelhub_using_command list' -l sort -x -a 'cost provider' -d 'Sort order'
 complete -c modelhub -f -n '__fish_modelhub_using_command completion' -a 'bash zsh fish'
 `
