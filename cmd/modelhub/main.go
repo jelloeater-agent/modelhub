@@ -238,19 +238,19 @@ func cmdList(cfg model.Config, store *cache.Store) {
 
 	if tableFlag {
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(w, "PROVIDER\tMODEL\tMODE\tINPUT/1M\tOUTPUT/1M\tCTX\tSPEED\tTOOL\tTHINK\tVISION")
+		fmt.Fprintln(w, "PROVIDER\tMODEL\tMODE\t$/M\tCTX\tSPEED\t🛠\t🧠\t👁")
 		for _, m := range sorted {
 			speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
 			if m.MedianTokensPerSecond == 0 {
 				speed = "-"
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t$%.2f\t$%.2f\t%d\t%s\t%s\t%s\t%s\n",
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%d\t%s\t%s\t%s\t%s\n",
 				m.Provider, m.Name, m.Mode,
-				m.InputPricePer1M, m.OutputPricePer1M,
+				costStr(m.InputPricePer1M, m.OutputPricePer1M),
 				m.ContextWindow, speed,
-				boolMark(m.SupportsFunctionCalling),
-				boolMark(m.SupportsReasoning),
-				boolMark(m.SupportsVision))
+				boolMark(m.SupportsFunctionCalling, "🛠"),
+				boolMark(m.SupportsReasoning, "🧠"),
+				boolMark(m.SupportsVision, "👁"))
 		}
 		w.Flush()
 		return
@@ -264,11 +264,15 @@ func cmdList(cfg model.Config, store *cache.Store) {
 	}
 }
 
-func boolMark(v bool) string {
+func boolMark(v bool, emoji string) string {
 	if v {
-		return "✓"
+		return emoji
 	}
-	return "✗"
+	return " "
+}
+
+func costStr(in, out float64) string {
+	return fmt.Sprintf("$%g/$%g", in, out)
 }
 
 func cmdShow(cfg model.Config, store *cache.Store) {
@@ -379,19 +383,19 @@ func cmdSearch(cfg model.Config, store *cache.Store) {
 	})
 
 	var buf bytes.Buffer
-	fmt.Fprintln(&buf, "PROVIDER           MODEL                                   MODE              INPUT/1M  OUTPUT/1M   CTX    SPEED  TOOL THINK VISION")
+	fmt.Fprintln(&buf, "PROVIDER           MODEL                                   MODE              $/M       CTX    SPEED  🛠 🧠 👁")
 	for _, m := range sorted {
 		speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
 		if m.MedianTokensPerSecond == 0 {
 			speed = "-"
 		}
-		fmt.Fprintf(&buf, "%s\t%-18s %-38s %-16s $%-7.2f $%-8.2f %-5d %-5s  %s    %s    %s\n",
+		fmt.Fprintf(&buf, "%s\t%-18s %-38s %-16s %-8s %-5d %-5s  %s %s %s\n",
 			m.ID, m.Provider, m.Name, m.Mode,
-			m.InputPricePer1M, m.OutputPricePer1M,
+			costStr(m.InputPricePer1M, m.OutputPricePer1M),
 			m.ContextWindow, speed,
-			boolMark(m.SupportsFunctionCalling),
-			boolMark(m.SupportsReasoning),
-			boolMark(m.SupportsVision))
+			boolMark(m.SupportsFunctionCalling, "🛠"),
+			boolMark(m.SupportsReasoning, "🧠"),
+			boolMark(m.SupportsVision, "👁"))
 	}
 
 	cmd := exec.Command("fzf",
