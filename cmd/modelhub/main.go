@@ -22,7 +22,7 @@ import (
 
 // version is set at build time via -ldflags, falls back to the tag below.
 // ponytail: no separate version file, no build script — just update this on tag.
-var version = "v0.1.6" // bump on each release
+var version = "v0.1.7" // bump on each release
 
 func main() {
 	log.SetFlags(0)
