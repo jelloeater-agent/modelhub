@@ -46,8 +46,10 @@ func main() {
 	cfg, store := initConfigAndStore()
 
 	switch os.Args[1] {
-	case "refresh", "update":
+	case "refresh":
 		cmdRefresh(cfg, store)
+	case "update":
+		cmdUpdate()
 	case "list":
 		cmdList(cfg, store)
 	case "show":
@@ -72,6 +74,7 @@ Usage:
   modelhub search            Interactive fuzzy search (fzf) with clipboard copy
   modelhub stats             Aggregate statistics (JSON)
   modelhub version           Print version
+  modelhub update            Self-update via go install
   modelhub completion <sh>   Generate shell completion (bash|zsh|fish)
 
 Config: $XDG_CONFIG_HOME/modelhub/config.json or AA_API_KEY env var
@@ -297,6 +300,23 @@ func cmdStats(cfg model.Config, store *cache.Store) {
 	}
 }
 
+// cmdUpdate self-updates the binary via go install.
+// ponytail: no downloader, no checksum verification — just delegates to go install.
+// Ceiling: requires Go in PATH. Upgrade path: pull prebuilt binaries from GitHub releases.
+func cmdUpdate() {
+	if _, err := exec.LookPath("go"); err != nil {
+		log.Fatal("update requires Go — install it from https://go.dev/dl")
+	}
+	fmt.Fprint(os.Stderr, "Updating modelhub...\n")
+	cmd := exec.Command("go", "install", "github.com/jelloeater-agent/modelhub/cmd/modelhub@latest")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		log.Fatalf("update failed: %v", err)
+	}
+	fmt.Fprint(os.Stderr, "✓ updated\n")
+}
+
 // ponytail: static search via fzf. No TUI lib, no fancy UI — just pipe TSV to fzf.
 // Ceiling: fzf must be installed. Upgrade path: embed a basic TUI as an alternative.
 func cmdSearch(cfg model.Config, store *cache.Store) {
@@ -390,7 +410,7 @@ var bashCompletion = `_modelhub() {
     local cur prev words cword
     _init_completion || return
 
-    local subcmds="refresh list show stats search version completion"
+    local subcmds="refresh list show stats search version update completion"
     local list_flags="--table"
     local global_flags="--config"
 
@@ -425,6 +445,7 @@ _modelhub() {
     'search:Interactive fuzzy search with clipboard copy'
     'stats:Aggregate statistics'
     'version:Print version'
+    'update:Self-update via go install'
     'completion:Generate shell completion script'
   )
 
@@ -480,6 +501,7 @@ complete -c modelhub -f -n '__fish_modelhub_needs_command' -a show -d 'Show a si
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a search -d 'Interactive fuzzy search with clipboard copy'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a stats -d 'Aggregate statistics'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a version -d 'Print version'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a update -d 'Self-update via go install'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a completion -d 'Generate shell completion script'
 
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -l config -d 'Path to config file'
