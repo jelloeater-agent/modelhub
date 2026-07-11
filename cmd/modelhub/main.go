@@ -3,10 +3,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -44,6 +47,8 @@ func main() {
 		cmdShow(cfg, store)
 	case "stats":
 		cmdStats(cfg, store)
+	case "search":
+		cmdSearch(cfg, store)
 	default:
 		usage()
 	}
@@ -57,6 +62,7 @@ Usage:
   modelhub refresh           Fetch latest data from all sources
   modelhub list [--table]    List models (JSON default, --table for human)
   modelhub show <id>         Show a single model (JSON)
+  modelhub search            Interactive fuzzy search (fzf) with clipboard copy
   modelhub stats [--json]    Aggregate statistics (JSON by default)
   modelhub completion <sh>   Generate shell completion (bash|zsh|fish)
 
@@ -67,6 +73,7 @@ Examples:
   eval "$(modelhub completion bash)"   # bash
   eval "$(modelhub completion zsh)"    # zsh
   modelhub completion fish | source    # fish
+  modelhub search                      # interactive fzf + copy
   modelhub list | jq '.[] | select(.provider=="openai") | .name'
   modelhub list --table | grep gpt-4
   modelhub show openai/gpt-4o | jq .context_window
@@ -282,6 +289,75 @@ func cmdStats(cfg model.Config, store *cache.Store) {
 	}
 }
 
+// ponytail: static search via fzf. No TUI lib, no fancy UI — just pipe TSV to fzf.
+// Ceiling: fzf must be installed. Upgrade path: embed a basic TUI as an alternative.
+func cmdSearch(cfg model.Config, store *cache.Store) {
+	if _, err := exec.LookPath("fzf"); err != nil {
+		log.Fatal("modelhub search requires fzf — install it from https://github.com/junegunn/fzf")
+	}
+
+	c := getCache(store)
+
+	// Build TSV: slug first (hidden), then display columns
+	var buf bytes.Buffer
+	for _, m := range c.Models {
+		speed := fmt.Sprintf("%.0f", m.MedianTokensPerSecond)
+		if m.MedianTokensPerSecond == 0 {
+			speed = "-"
+		}
+		fmt.Fprintf(&buf, "%s\t%s\t%s\t%s\t$%.2f\t$%.2f\t%d\t%s\n",
+			m.ID, m.Provider, m.Name, m.Mode,
+			m.InputPricePer1M, m.OutputPricePer1M,
+			m.ContextWindow, speed)
+	}
+
+	cmd := exec.Command("fzf",
+		"--header", "PROVIDER | MODEL | MODE | INPUT/1M | OUTPUT/1M | CTX | SPEED",
+		"--delimiter=\t",
+		"--with-nth=2..",
+	)
+	cmd.Stdin = &buf
+	cmd.Stderr = os.Stderr
+	out, err := cmd.Output()
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && (exitErr.ExitCode() == 130 || exitErr.ExitCode() == 1) {
+			return // user cancelled or no match
+		}
+		log.Fatalf("fzf: %v", err)
+	}
+
+	slug := strings.TrimSpace(string(out))
+	// slug includes trailing tab+rest, take only first field
+	if idx := strings.IndexByte(slug, '\t'); idx >= 0 {
+		slug = slug[:idx]
+	}
+	if slug == "" {
+		return
+	}
+
+	copyToClipboard(slug)
+	fmt.Fprintf(os.Stderr, "✓ %s\n", slug)
+}
+
+func copyToClipboard(text string) {
+	for _, args := range [][]string{
+		{"xclip", "-selection", "clipboard"},
+		{"xsel", "-ib"},
+		{"wl-copy"},
+		{"pbcopy"},
+	} {
+		if _, err := exec.LookPath(args[0]); err == nil {
+			c := exec.Command(args[0], args[1:]...)
+			c.Stdin = strings.NewReader(text)
+			c.Run()
+			return
+		}
+	}
+	// ponytail: no clipboard tool found, just print to stdout for manual piping
+	fmt.Print(text)
+}
+
 func cmdCompletion() {
 	if len(os.Args) < 3 {
 		log.Fatal("usage: modelhub completion bash|zsh|fish")
@@ -304,7 +380,7 @@ var bashCompletion = `_modelhub() {
     local cur prev words cword
     _init_completion || return
 
-    local subcmds="refresh list show stats completion"
+    local subcmds="refresh list show stats search completion"
     local list_flags="--table"
     local global_flags="--config"
 
@@ -336,6 +412,7 @@ _modelhub() {
     'refresh:Fetch latest data from all sources'
     'list:List models (--table for human-readable)'
     'show:Show a single model by ID'
+    'search:Interactive fuzzy search with clipboard copy'
     'stats:Aggregate statistics'
     'completion:Generate shell completion script'
   )
@@ -389,6 +466,7 @@ end
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a refresh -d 'Fetch latest data from all sources'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a list -d 'List models (JSON default, --table for human)'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a show -d 'Show a single model by ID'
+complete -c modelhub -f -n '__fish_modelhub_needs_command' -a search -d 'Interactive fuzzy search with clipboard copy'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a stats -d 'Aggregate statistics'
 complete -c modelhub -f -n '__fish_modelhub_needs_command' -a completion -d 'Generate shell completion script'
 
