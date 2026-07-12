@@ -70,6 +70,16 @@ jobs:
             goarch:
             - amd64
             - arm64
+            - "386"
+            - arm
+            goarm:
+            - "6"
+            - "7"
+            ignore:
+            - goos: darwin
+              goarch: "386"
+            - goos: darwin
+              goarch: arm
           nfpms:
           -
             maintainer: Jelloeater <jello@jelloeater.me>

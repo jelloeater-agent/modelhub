@@ -23,6 +23,18 @@ tasks:
     build:
       - goreleaser --snapshot --clean
 
+    cross-build:
+      cmds:
+        - mkdir -p dist
+        - GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o dist/modelhub_linux_amd64 ./cmd/modelhub
+        - GOOS=linux GOARCH=386 CGO_ENABLED=0 go build -o dist/modelhub_linux_386 ./cmd/modelhub
+        - GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -o dist/modelhub_linux_arm64 ./cmd/modelhub
+        - GOOS=linux GOARCH=arm GOARM=6 CGO_ENABLED=0 go build -o dist/modelhub_linux_armv6 ./cmd/modelhub
+        - GOOS=linux GOARCH=arm GOARM=7 CGO_ENABLED=0 go build -o dist/modelhub_linux_armv7 ./cmd/modelhub
+        - GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -o dist/modelhub_darwin_amd64 ./cmd/modelhub
+        - GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -o dist/modelhub_darwin_arm64 ./cmd/modelhub
+      silent: false
+
     install-hooks:
         cmds:
 #            - pip install pre-commit
